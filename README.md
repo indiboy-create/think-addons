@@ -11,7 +11,7 @@
 - 插件配置双层存储：`config.php` 提供结构与默认值，`addon_config` 数据表保存用户值
 - `addon_url()` 统一生成插件地址，支持伪静态规则与原生路由回退
 - 控制器基类 `think\addons\Controller` 内置跳转、响应、视图能力
-- 支持插件级 `route.php`、`middleware.php`、`service.json`、`fun.php`、`command.php`、`menu.php`
+- 支持插件级 `route.php`、`service.json`、`fun.php`、`command.php`、`menu.php`，以及项目根 `addons/middleware.php` 的全局插件中间件
 - `addon_config` 表不存在时自动降级为纯文件配置，不影响已有插件
 
 ## 环境要求
@@ -220,6 +220,22 @@ class Index extends Controller
 
 上面的示例可通过 `/addons/test/index/index` 访问，也可通过 `addon_url('test/index/index')` 生成地址。
 
+## 示例
+
+仓库 `examples/` 目录提供可直接复制到项目 `addons/` 的示例插件：
+
+- `examples/test`：最小插件，包含 `info.json`、`Plugin.php`、配置、控制器和模板
+- `examples/demo`：进阶示例，展示伪静态、容器绑定、命令、菜单、函数与额外路由
+
+复制方式：
+
+```bash
+cp -r examples/test addons/test
+cp -r examples/demo addons/demo
+```
+
+更多说明见 `examples/README.md`。
+
 ## 插件扩展文件
 
 插件目录下的以下文件会在插件系统启动时按约定加载：
@@ -230,7 +246,6 @@ class Index extends Controller
 | `Plugin.php` | 插件入口类 | 插件发现、钩子注册、安装/卸载时 |
 | `config.php` | 插件配置结构与默认值 | 读取插件配置时 |
 | `route.php` | 插件自定义路由 | 服务注册阶段 |
-| `middleware.php` | 插件路由中间件 | 插件路由注册时 |
 | `service.json` | 容器绑定映射 | 服务注册阶段 |
 | `fun.php` | 插件函数文件 | 服务注册阶段 |
 | `command.php` | 插件命令列表 | 服务注册阶段 |
@@ -238,6 +253,8 @@ class Index extends Controller
 | `menu.php` | 插件菜单 | 调用 `get_addons_menu()` 时 |
 | `controller/` | 控制器目录 | 路由执行时 |
 | `view/` | 模板目录 | 视图渲染时 |
+
+> 插件路由的全局中间件放在项目根 `addons/middleware.php`，不是单个插件目录内；该文件返回中间件类名或闭包数组。
 
 插件命名空间统一为 `addons\{插件名}`，无需额外配置 autoload。
 
@@ -262,10 +279,16 @@ return [
 
     // 预留配置项
     'service' => [],
+
+    // 跳转提示模板（绝对路径），留空使用内置模板
+    'jump' => [
+        'dispatch_success_tmpl' => '',
+        'dispatch_error_tmpl'   => '',
+    ],
 ];
 ```
 
-如需覆盖默认值，在项目 `config/addons.php` 中返回同结构配置。
+如需覆盖默认值，在项目 `config/addons.php` 中返回同结构配置。项目配置示例见 `examples/config/addons.php`。
 
 ### 钩子配置
 
@@ -309,6 +332,24 @@ return [
 ```
 
 路由注册时会检查插件是否存在且 `status` 为启用；已禁用或不存在的插件会被跳过。
+
+### 跳转提示模板
+
+`success()` / `error()` 的 HTML 跳转页通过 `jump` 配置：
+
+```php
+return [
+    'jump' => [
+        // 绝对路径；留空使用包内 src/addons/tpl/dispatch_jump.tpl
+        'dispatch_success_tmpl' => root_path() . 'app/index/view/public/jump_success.tpl',
+        'dispatch_error_tmpl'   => root_path() . 'app/index/view/public/jump_error.tpl',
+    ],
+];
+```
+
+- 仅 HTML 请求生效；Ajax/JSON 请求直接输出 JSON
+- 未配置时兼容读取旧的 `config/jump.php`，最后回退内置模板
+- 模板可用变量：`$code`、`$msg`、`$data`、`$url`、`$wait`
 
 ## 钩子
 
@@ -486,7 +527,7 @@ $this->redirect(addon_url('test/index/index'));
 
 - `success()` / `error()` 返回结构为 `code`、`msg`、`data`、`url`、`wait`
 - `result()` 返回结构为 `code`、`msg`、`time`、`data`
-- HTML 请求渲染跳转模板：优先读取项目 `config/jump.php` 的 `dispatch_success_tmpl` / `dispatch_error_tmpl`，未配置时使用包内 `src/addons/tpl/dispatch_jump.tpl`
+- HTML 请求渲染跳转模板：优先读取 `config/addons.php` 的 `jump.dispatch_success_tmpl` / `jump.dispatch_error_tmpl`，未配置时兼容 `config/jump.php`，最后使用包内 `src/addons/tpl/dispatch_jump.tpl`
 - Ajax/JSON 请求直接输出 JSON，不渲染模板；`error()` 在 Ajax 请求下会自动向 `data` 注入 `token`
 - 跳转方法通过 `HttpResponseException` 抛出响应，在 `initialize()` 中同样可用
 
@@ -604,7 +645,7 @@ CREATE TABLE IF NOT EXISTS `addon_config` (
 
 ```text
 www/
-├─ addons/                 插件目录
+├─ addons/                 插件目录（可含全局 middleware.php）
 ├─ app/                    应用目录
 ├─ config/                 配置目录
 │  └─ addons.php           插件配置（可选，覆盖包内默认值）
@@ -625,7 +666,7 @@ addons/test/
 ├─ config.php              插件配置
 ├─ menu.php                插件菜单（可选）
 ├─ route.php               插件路由（可选）
-├─ middleware.php          插件中间件（可选）
+
 ├─ service.json            容器绑定（可选）
 ├─ fun.php                 函数文件（可选）
 ├─ command.php             命令列表（可选）

@@ -1,0 +1,3 @@
+{
+    "addons\\demo\\contract\\GreeterContract": "addons\\demo\\service\\Greeter"
+}

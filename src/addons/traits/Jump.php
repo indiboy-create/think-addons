@@ -13,8 +13,8 @@ use think\Response;
  * 供插件基础框架的控制器基类（think\addons\Controller）复用，
  * 行为与宿主应用 app\BaseController 保持一致：
  * - 返回结构统一为 code/msg/data/url/wait
- * - HTML 请求渲染跳转模板（优先宿主项目 config/jump.php 的 dispatch_success_tmpl /
- *   dispatch_error_tmpl；未接入该配置的项目回退本包内置模板）
+ * - HTML 请求渲染跳转模板（优先 config/addons.php 的 jump.dispatch_success_tmpl /
+ *   jump.dispatch_error_tmpl；兼容旧的 config/jump.php；未配置时回退本包内置模板）
  * - Ajax/JSON 请求直接输出 json，error 时自动注入 token
  *
  * 使用前提：宿主类须提供 $app（应用实例）与 $request（请求实例）两个属性，
@@ -158,19 +158,30 @@ trait Jump
     /**
      * 获取跳转提示模板路径
      *
-     * 优先宿主项目 config/jump.php 中配置的模板；未接入该配置的项目
-     * （如独立使用本扩展包）回退到本包内置模板，保证跳转页可用。
+     * 优先读取 config/addons.php 的 jump.dispatch_success_tmpl /
+     * jump.dispatch_error_tmpl；未配置时兼容旧的 config/jump.php；
+     * 仍未配置则回退到本包内置模板，保证跳转页可用。
      *
      * @param string $type success|error
      * @return string 模板文件绝对路径
      */
     protected function getJumpTemplate(string $type): string
     {
-        $key  = 'success' === $type ? 'dispatch_success_tmpl' : 'dispatch_error_tmpl';
-        $tmpl = $this->app->config->get('jump.' . $key);
+        $key = 'success' === $type ? 'dispatch_success_tmpl' : 'dispatch_error_tmpl';
+
+        // 优先读取本包配置（项目 config/addons.php）
+        $tmpl = $this->app->config->get('addons.jump.' . $key);
+
+        // 兼容旧的 config/jump.php 配置
+        if (empty($tmpl)) {
+            $tmpl = $this->app->config->get('jump.' . $key);
+        }
+
+        // 未配置时使用内置模板
         if (empty($tmpl)) {
             $tmpl = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'tpl' . DIRECTORY_SEPARATOR . 'dispatch_jump.tpl';
         }
+
         return $tmpl;
     }
 }

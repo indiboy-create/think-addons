@@ -1,0 +1,12 @@
+{
+    "name": "test",
+    "title": "基础示例插件",
+    "description": "最小可运行插件：钩子、控制器、配置与模板",
+    "website": "https://github.com/youvision/think-addons",
+    "status": "1",
+    "is_admin": "0",
+    "is_index": "1",
+    "install": "1",
+    "author": "youvision",
+    "version": "1.0.0"
+}
